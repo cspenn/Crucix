@@ -130,6 +130,63 @@ describe('OpenAIProvider', () => {
     }
   });
 
+  it('should use max_completion_tokens for OpenAI (no baseUrl)', async () => {
+    const provider = new OpenAIProvider({ apiKey: 'sk-test' });
+    let capturedBody;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock.fn((url, opts) => {
+      capturedBody = JSON.parse(opts.body);
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }], usage: {}, model: 'gpt-5.4' }),
+      });
+    });
+    try {
+      await provider.complete('sys', 'user', { maxTokens: 8192 });
+      assert.equal(capturedBody.max_completion_tokens, 8192);
+      assert.equal(capturedBody.max_tokens, undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('should use max_tokens for local LLM (baseUrl set)', async () => {
+    const provider = new OpenAIProvider({ baseUrl: 'http://localhost:1234/v1/chat/completions', model: 'local' });
+    let capturedBody;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock.fn((url, opts) => {
+      capturedBody = JSON.parse(opts.body);
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }], usage: {}, model: 'local' }),
+      });
+    });
+    try {
+      await provider.complete('sys', 'user', { maxTokens: 16384 });
+      assert.equal(capturedBody.max_tokens, 16384);
+      assert.equal(capturedBody.max_completion_tokens, undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('should return finishReason from response', async () => {
+    const provider = new OpenAIProvider({ apiKey: 'sk-test' });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ choices: [{ message: { content: 'hi' }, finish_reason: 'length' }], usage: {}, model: 'gpt-5.4' }),
+      })
+    );
+    try {
+      const result = await provider.complete('sys', 'user');
+      assert.equal(result.finishReason, 'length');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('should throw on API error', async () => {
     const provider = new OpenAIProvider({ apiKey: 'sk-test' });
     const originalFetch = globalThis.fetch;

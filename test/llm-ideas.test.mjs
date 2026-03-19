@@ -91,6 +91,15 @@ describe('generateLLMIdeas', () => {
     assert.equal(result, null);
   });
 
+  it('strips <think>...</think> reasoning tags before parsing', async () => {
+    const withThink = '<think>\nThis is a long chain-of-thought reasoning block.\nI should consider macro factors...\n</think>\n' + sampleIdeasJson;
+    const provider = makeMockProvider(withThink);
+    const result = await generateLLMIdeas(provider, minimalSweepData, null);
+    assert.ok(Array.isArray(result));
+    assert.ok(result.length > 0);
+    assert.equal(result[0].title, 'Buy SPY');
+  });
+
   it('filters out ideas missing required fields (title, type, confidence)', async () => {
     const partial = JSON.stringify([
       { title: 'Good Idea', type: 'LONG', ticker: 'SPY', confidence: 'HIGH', rationale: 'ok', risk: 'ok', horizon: 'Days', signals: [] },
